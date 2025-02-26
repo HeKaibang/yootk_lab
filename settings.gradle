@@ -1,0 +1,4 @@
+rootProject.name = 'yootk_lab'
+include 'common'
+include 'lab_message'
+
