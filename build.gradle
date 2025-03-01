@@ -1,8 +1,8 @@
 buildscript {
     repositories {
-        // 使用腾讯源
-        maven { url 'https://mirrors.cloud.tencent.com/nexus/repository/maven-public' }
-        maven { url 'https://repo.spring.io/libs-milestone' }
+        // 使用阿里云仓库加速依赖下载
+        maven { url 'https://maven.aliyun.com/repository/public' }
+        mavenCentral()
     }
     dependencies {
         classpath 'org.springframework.boot:spring-boot-gradle-plugin:3.4.3'
@@ -13,88 +13,75 @@ plugins {
     id 'java'
 }
 
-group project_group
-version project_version
+// 从 gradle.properties 中读取公共配置
+group = project_group
+version = project_version
 
-def env = System.getProperty("env") ?: 'dev'
-
+// 子项目通用配置
 subprojects {
     apply plugin: 'java'
     apply plugin: 'org.springframework.boot'
     apply plugin: 'io.spring.dependency-management'
+
+    // 设置 JDK 版本兼容性
     sourceCompatibility = project_jdk
     targetCompatibility = project_jdk
+
     repositories {
         mavenLocal()
-        // 使用腾讯源
-        maven {
-            allowInsecureProtocol = true
-            url 'https://mirrors.cloud.tencent.com/nexus/repository/maven-public'
-        }
-        maven { url 'https://repo.spring.io/libs-milestone' }
+        maven { url 'https://maven.aliyun.com/repository/public' }
         mavenCentral()
     }
-    dependencies {}
+
+    // 公共依赖管理
+    dependencyManagement {
+        imports {
+            mavenBom "org.springframework.boot:spring-boot-dependencies:3.4.3"
+        }
+    }
+
+    // 源代码目录配置
     sourceSets {
         main {
             java { srcDirs = ['src/main/java'] }
-            resources { srcDirs = ['src/main/resources', "src/main/profiles/$env"] }
+            resources { srcDirs = ['src/main/resources', "src/main/profiles/${System.getProperty('env') ?: 'dev'}"] }
         }
         test {
             java { srcDirs = ['src/test/java'] }
             resources { srcDirs = ['src/test/resources'] }
         }
     }
+
+    // 测试配置
     test {
         useJUnitPlatform()
     }
 
-    task sourceJar(type: Jar, dependsOn: classes) {
-        archiveClassifier = 'sources'
-        from sourceSets.main.allSource
-    }
-
-    task javadocTask(type: Javadoc) {
-        options.encoding = 'UTF-8'
-        source = sourceSets.main.allJava
-    }
-
-    task javadocJar(type: Jar, dependsOn: javadocTask) {
-        archiveClassifier = 'javadoc'
-        from javadocTask.destinationDir
-    }
-
-    tasks.withType(Javadoc) {
+    // 编码统一为 UTF-8
+    tasks.withType(JavaCompile).configureEach {
         options.encoding = 'UTF-8'
     }
-
-    tasks.withType(JavaCompile) {
+    tasks.withType(Javadoc).configureEach {
         options.encoding = 'UTF-8'
     }
+}
 
-    artifacts {
-        archives sourceJar
-        archives javadocJar
-    }
-
-    gradle.taskGraph.whenReady {
-        tasks.each { task ->
-            if (task.name.contains('test')) {
-                task.enabled = true
-            }
+//默认启用测试任务
+gradle.taskGraph.whenReady {
+    tasks.each { task ->
+        if (task.name.contains('test')) {
+            task.enabled = true
         }
     }
-    [compileJava, compileTestJava, javadoc]*.options*.encoding = 'UTF-8'
 }
 
-
-project(":common") { // 定义公共程序类
-    dependencies {}
+project(':common') {
+    // 公共模块无额外依赖
 }
 
-project(":lab_message") { // 定义公共程序类
+project(':lab_message') {
     dependencies {
-        implementation 'org.springframework.boot:spring-boot-starter-web'  // 依赖导入
-        implementation project(':common')  // 引入其他子模块
+        implementation 'org.springframework.boot:spring-boot-starter-web:3.4.3'
+        implementation project(':common')
     }
 }
